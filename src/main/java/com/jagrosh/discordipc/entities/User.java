@@ -29,7 +29,6 @@ public class User
     private final String discriminator;
     private final long id;
     private final String avatar;
-
     /**
      * Constructs a new {@link User}.<br>
      * Only implemented internally.

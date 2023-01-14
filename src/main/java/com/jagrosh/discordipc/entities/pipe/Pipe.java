@@ -28,18 +28,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.HashMap;
 import java.util.UUID;
 
 public abstract class Pipe {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Pipe.class);
-    private static final int VERSION = 3;
+    private static final int VERSION = 1;
     PipeStatus status = PipeStatus.CONNECTING;
     IPCListener listener;
     private DiscordBuild build;
     final IPCClient ipcClient;
-    private final HashMap<String,Callback> callbacks;
+    protected final HashMap<String,Callback> callbacks;
 
     Pipe(IPCClient ipcClient, HashMap<String, Callback> callbacks)
     {
@@ -150,7 +151,7 @@ public abstract class Pipe {
         return pipe;
     }
 
-    private static Pipe createPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location) {
+    private static Pipe createPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location) throws IOException {
         String osName = System.getProperty("os.name").toLowerCase();
 
         if (osName.contains("win"))
@@ -159,13 +160,7 @@ public abstract class Pipe {
         }
         else if (osName.contains("linux") || osName.contains("mac"))
         {
-            try {
-                return new UnixPipe(ipcClient, callbacks, location);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            return new UnixPipe(ipcClient, callbacks, location);
         }
         else
         {

@@ -20,6 +20,7 @@ import com.jagrosh.discordipc.entities.Packet.OpCode;
 import com.jagrosh.discordipc.entities.pipe.Pipe;
 import com.jagrosh.discordipc.entities.pipe.PipeStatus;
 import com.jagrosh.discordipc.exceptions.NoDiscordClientException;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -187,6 +188,12 @@ public final class IPCClient implements Closeable
                             .put("args", new JSONObject()
                                         .put("pid",getPID())
                                         .put("activity",presence == null ? null : presence.toJson())), callback);
+    }
+
+    public void send(JSONObject object, Callback callback) {
+        checkConnected(true);
+        LOGGER.debug("Sending "+object.getString("cmd")+" to discord: "+object);
+        pipe.send(OpCode.FRAME, object, callback);
     }
 
     /**
@@ -392,7 +399,6 @@ public final class IPCClient implements Closeable
                         case ACTIVITY_JOIN_REQUEST:
                             LOGGER.debug("Reading thread received a 'join request' event.");
                             break;
-                            
                         case UNKNOWN:
                             LOGGER.debug("Reading thread encountered an event with an unknown type: " +
                                          json.getString("evt"));

@@ -19,6 +19,8 @@ import com.jagrosh.discordipc.entities.Packet;
 import com.jagrosh.discordipc.entities.User;
 import org.json.JSONObject;
 
+import java.util.List;
+
 /**
  * An implementable listener used to handle events caught by an {@link IPCClient}.<p>
  *
@@ -74,6 +76,7 @@ public interface IPCListener
      * @param user The user who clicked the clicked the event, containing data on the account.
      */
     default void onActivityJoinRequest(IPCClient client, String secret, User user) {}
+
 
     /**
      * Fired whenever an {@link IPCClient} is ready and connected to Discord.
