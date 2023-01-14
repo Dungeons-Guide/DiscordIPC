@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.HashMap;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Represents a Discord IPC Client that can send and receive
@@ -61,7 +62,9 @@ public final class IPCClient implements Closeable
     private volatile Pipe pipe;
     private IPCListener listener = null;
     private Thread readThread = null;
-    
+
+    private final ThreadFactory threadFactory;
+
     /**
      * Constructs a new IPCClient using the provided {@code clientId}.<br>
      * This is initially unconnected to Discord.
@@ -71,7 +74,21 @@ public final class IPCClient implements Closeable
      */
     public IPCClient(long clientId)
     {
+        this(clientId, Thread::new);
+    }
+
+    /**
+     * Constructs a new IPCClient using the provided {@code clientId} and {@code threadFactory}.<br>
+     * This is initially unconnected to Discord.
+     *
+     * @param clientId The Rich Presence application's client ID, which can be found
+     *                 <a href=https://discordapp.com/developers/applications/me>here</a>
+     * @param threadFactory the Thread Factory to be used when creating readThread
+     */
+    public IPCClient(long clientId, ThreadFactory threadFactory)
+    {
         this.clientId = clientId;
+        this.threadFactory = threadFactory;
     }
     
     /**
@@ -343,7 +360,7 @@ public final class IPCClient implements Closeable
      */
     private void startReading()
     {
-        readThread = new Thread(() -> {
+        readThread = threadFactory.newThread(() -> {
             try
             {
                 Packet p;
