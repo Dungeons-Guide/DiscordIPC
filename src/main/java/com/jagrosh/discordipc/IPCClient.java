@@ -210,9 +210,9 @@ public final class IPCClient implements Closeable
      *         If a connection was not made prior to invoking
      *         this method.
      */
-    public void subscribe(Event sub)
+    public void subscribe(String event)
     {
-        subscribe(sub, null);
+        subscribe(event, null);
     }
     
     /**
@@ -230,15 +230,12 @@ public final class IPCClient implements Closeable
      *         If a connection was not made prior to invoking
      *         this method.
      */
-    public void subscribe(Event sub, Callback callback)
+    public void subscribe(String event, Callback callback)
     {
         checkConnected(true);
-        if(!sub.isSubscribable())
-            throw new IllegalStateException("Cannot subscribe to "+sub+" event!");
-        LOGGER.debug(String.format("Subscribing to Event: %s", sub.name()));
         pipe.send(OpCode.FRAME, new JSONObject()
                             .put("cmd", "SUBSCRIBE")
-                            .put("evt", sub.name()), callback);
+                            .put("evt", event), callback);
     }
 
     /**
