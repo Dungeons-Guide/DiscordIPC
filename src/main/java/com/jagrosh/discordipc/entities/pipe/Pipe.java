@@ -34,7 +34,7 @@ import java.util.UUID;
 public abstract class Pipe {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Pipe.class);
-    private static final int VERSION = 1;
+    private static final int VERSION = 3;
     PipeStatus status = PipeStatus.CONNECTING;
     IPCListener listener;
     private DiscordBuild build;
