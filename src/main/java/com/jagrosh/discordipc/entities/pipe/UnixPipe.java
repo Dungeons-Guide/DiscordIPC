@@ -85,12 +85,6 @@ public class UnixPipe extends Pipe
         Packet p = new Packet(op, new JSONObject(new String(d)));
         LOGGER.debug(String.format("Received packet: %s", p.toString()));
 
-        if (!p.getJson().isNull("nonce"))
-            if (callbacks.get(p.getJson().getString("nonce")) != null)
-                callbacks.get(p.getJson().getString("nonce")).succeed(p);
-
-        if(listener != null)
-            listener.onPacketReceived(ipcClient, p);
         return p;
     }
 

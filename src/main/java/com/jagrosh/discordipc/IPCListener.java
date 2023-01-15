@@ -16,10 +16,7 @@
 package com.jagrosh.discordipc;
 
 import com.jagrosh.discordipc.entities.Packet;
-import com.jagrosh.discordipc.entities.User;
 import org.json.JSONObject;
-
-import java.util.List;
 
 /**
  * An implementable listener used to handle events caught by an {@link IPCClient}.<p>
@@ -45,38 +42,6 @@ public interface IPCListener
      * @param packet The Packet being received.
      */
     default void onPacketReceived(IPCClient client, Packet packet) {}
-
-    /**
-     * Fired whenever a RichPresence activity informs us that
-     * a user has clicked a "join" button.
-     *
-     * @param client The IPCClient receiving the event.
-     * @param secret The secret of the event, determined by the implementation and specified by the user.
-     */
-    default void onActivityJoin(IPCClient client, String secret) {}
-
-    /**
-     * Fired whenever a RichPresence activity informs us that
-     * a user has clicked a "spectate" button.
-     *
-     * @param client The IPCClient receiving the event.
-     * @param secret The secret of the event, determined by the implementation and specified by the user.
-     */
-    default void onActivitySpectate(IPCClient client, String secret) {}
-
-    /**
-     * Fired whenever a RichPresence activity informs us that
-     * a user has clicked a "ask to join" button.<p>
-     *
-     * As opposed to {@link #onActivityJoin(IPCClient, String)},
-     * this also provides packaged {@link User} data.
-     *
-     * @param client The IPCClient receiving the event.
-     * @param secret The secret of the event, determined by the implementation and specified by the user.
-     * @param user The user who clicked the clicked the event, containing data on the account.
-     */
-    default void onActivityJoinRequest(IPCClient client, String secret, User user) {}
-
 
     /**
      * Fired whenever an {@link IPCClient} is ready and connected to Discord.
