@@ -37,14 +37,10 @@ public class WindowsPipe extends Pipe
 
     private final RandomAccessFile file;
 
-    WindowsPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location)
+    WindowsPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location) throws IOException
     {
         super(ipcClient, callbacks);
-        try {
-            this.file = new RandomAccessFile(location, "rw");
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        this.file = new RandomAccessFile(location, "rw");
     }
 
     @Override
