@@ -26,11 +26,14 @@ import org.newsclub.net.unix.AFUNIXSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.DataInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.Optional;
 
 public class UnixPipe extends Pipe
 {
@@ -50,7 +53,7 @@ public class UnixPipe extends Pipe
     @Override
     public Packet read() throws IOException, JSONException
     {
-        InputStream is = socket.getInputStream();
+        DataInputStream is =  new DataInputStream(socket.getInputStream());
 
         while(is.available() == 0 && status == PipeStatus.CONNECTED)
         {
@@ -73,17 +76,16 @@ public class UnixPipe extends Pipe
 
         // Read the op and length. Both are signed ints
         byte[] d = new byte[8];
-        is.read(d);
+        is.readFully(d);
         ByteBuffer bb = ByteBuffer.wrap(d);
 
         Packet.OpCode op = Packet.OpCode.values()[Integer.reverseBytes(bb.getInt())];
         d = new byte[Integer.reverseBytes(bb.getInt())];
 
-        is.read(d);
+        is.readFully(d);
         Packet p = new Packet(op, new JSONObject(new String(d)));
         LOGGER.debug(String.format("Received packet: %s", p.toString()));
-        if(listener != null)
-            listener.onPacketReceived(ipcClient, p);
+
         return p;
     }
 

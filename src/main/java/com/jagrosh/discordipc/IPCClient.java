@@ -20,6 +20,7 @@ import com.jagrosh.discordipc.entities.Packet.OpCode;
 import com.jagrosh.discordipc.entities.pipe.Pipe;
 import com.jagrosh.discordipc.entities.pipe.PipeStatus;
 import com.jagrosh.discordipc.exceptions.NoDiscordClientException;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -29,6 +30,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.HashMap;
+import java.util.concurrent.ThreadFactory;
+import java.util.function.Consumer;
 
 /**
  * Represents a Discord IPC Client that can send and receive
@@ -40,9 +43,6 @@ import java.util.HashMap;
  *
  * When initially created using {@link #IPCClient(long)} the client will
  * be inactive awaiting a call to {@link #connect(DiscordBuild...)}.<br>
- * After the call, this client can send and receive Rich Presence data
- * to and from discord via {@link #sendRichPresence(RichPresence)} and
- * {@link #setListener(IPCListener)} respectively.<p>
  *
  * Please be mindful that the client created is initially unconnected,
  * and calling any methods that exchange data between this client and
@@ -58,10 +58,13 @@ public final class IPCClient implements Closeable
     private static final Logger LOGGER = LoggerFactory.getLogger(IPCClient.class);
     private final long clientId;
     private final HashMap<String,Callback> callbacks = new HashMap<>();
+    private final HashMap<String,Consumer<Packet>> eventHandlers = new HashMap<>();
     private volatile Pipe pipe;
     private IPCListener listener = null;
     private Thread readThread = null;
-    
+
+    private final ThreadFactory threadFactory;
+
     /**
      * Constructs a new IPCClient using the provided {@code clientId}.<br>
      * This is initially unconnected to Discord.
@@ -71,7 +74,21 @@ public final class IPCClient implements Closeable
      */
     public IPCClient(long clientId)
     {
+        this(clientId, Thread::new);
+    }
+
+    /**
+     * Constructs a new IPCClient using the provided {@code clientId} and {@code threadFactory}.<br>
+     * This is initially unconnected to Discord.
+     *
+     * @param clientId The Rich Presence application's client ID, which can be found
+     *                 <a href=https://discordapp.com/developers/applications/me>here</a>
+     * @param threadFactory the Thread Factory to be used when creating readThread
+     */
+    public IPCClient(long clientId, ThreadFactory threadFactory)
+    {
         this.clientId = clientId;
+        this.threadFactory = threadFactory;
     }
     
     /**
@@ -120,101 +137,56 @@ public final class IPCClient implements Closeable
             listener.onReady(this);
         startReading();
     }
-    
-    /**
-     * Sends a {@link RichPresence} to the Discord client.<p>
-     *
-     * This is where the IPCClient will officially display
-     * a Rich Presence in the Discord client.<p>
-     *
-     * Sending this again will overwrite the last provided
-     * {@link RichPresence}.
-     *
-     * @param presence The {@link RichPresence} to send.
-     *
-     * @throws IllegalStateException
-     *         If a connection was not made prior to invoking
-     *         this method.
-     *
-     * @see RichPresence
-     */
-    public void sendRichPresence(RichPresence presence)
-    {
-        sendRichPresence(presence, null);
-    }
-    
-    /**
-     * Sends a {@link RichPresence} to the Discord client.<p>
-     *
-     * This is where the IPCClient will officially display
-     * a Rich Presence in the Discord client.<p>
-     *
-     * Sending this again will overwrite the last provided
-     * {@link RichPresence}.
-     *
-     * @param presence The {@link RichPresence} to send.
-     * @param callback A {@link Callback} to handle success or error
-     *
-     * @throws IllegalStateException
-     *         If a connection was not made prior to invoking
-     *         this method.
-     *
-     * @see RichPresence
-     */
-    public void sendRichPresence(RichPresence presence, Callback callback)
-    {
+
+    public void send(JSONObject object, Callback callback) {
         checkConnected(true);
-        LOGGER.debug("Sending RichPresence to discord: "+(presence == null ? null : presence.toJson().toString()));
-        pipe.send(OpCode.FRAME, new JSONObject()
-                            .put("cmd","SET_ACTIVITY")
-                            .put("args", new JSONObject()
-                                        .put("pid",getPID())
-                                        .put("activity",presence == null ? null : presence.toJson())), callback);
+        LOGGER.debug("Sending "+object.getString("cmd")+" to discord: "+object);
+        pipe.send(OpCode.FRAME, object, callback);
     }
 
     /**
-     * Adds an event {@link Event} to this IPCClient.<br>
-     * If the provided {@link Event} is added more than once,
-     * it does nothing.
+     * Adds an event to this IPCClient.<br>
+     * If the provided event is added more than once,
+     * it overwrites previous handler
      * Once added, there is no way to remove the subscription
      * other than {@link #close() closing} the connection
      * and creating a new one.
      *
-     * @param sub The event {@link Event} to add.
+     * @param event The event to add.
+     * @param eventHandler The handler for the event
      *
      * @throws IllegalStateException
      *         If a connection was not made prior to invoking
      *         this method.
      */
-    public void subscribe(Event sub)
+    public void subscribe(String event, Consumer<Packet> eventHandler)
     {
-        subscribe(sub, null);
+        subscribe(event, null, eventHandler);
     }
     
     /**
-     * Adds an event {@link Event} to this IPCClient.<br>
-     * If the provided {@link Event} is added more than once,
+     * Adds an event to this IPCClient.<br>
+     * If the provided event is added more than once,
      * it does nothing.
      * Once added, there is no way to remove the subscription
      * other than {@link #close() closing} the connection
      * and creating a new one.
      *
-     * @param sub The event {@link Event} to add.
+     * @param event The event to add.
      * @param callback The {@link Callback} to handle success or failure
+     * @param eventHandler The event handler to handle the events
      *
      * @throws IllegalStateException
      *         If a connection was not made prior to invoking
      *         this method.
      */
-    public void subscribe(Event sub, Callback callback)
+    public void subscribe(String event, Callback callback, Consumer<Packet> eventHandler)
     {
         checkConnected(true);
-        if(!sub.isSubscribable())
-            throw new IllegalStateException("Cannot subscribe to "+sub+" event!");
-        LOGGER.debug(String.format("Subscribing to Event: %s", sub.name()));
+        eventHandlers.put(event, eventHandler);
         pipe.send(OpCode.FRAME, new JSONObject()
                             .put("cmd", "SUBSCRIBE")
-                            .put("evt", sub.name()), callback);
+                            .put("evt", event), callback);
     }
 
     /**
@@ -270,55 +242,6 @@ public final class IPCClient implements Closeable
         return pipe.getDiscordBuild();
     }
 
-    /**
-     * Constants representing events that can be subscribed to
-     * using {@link #subscribe(Event)}.<p>
-     *
-     * Each event corresponds to a different function as a
-     * component of the Rich Presence.<br>
-     * A full breakdown of each is available
-     * <a href=https://discordapp.com/developers/docs/rich-presence/how-to>here</a>.
-     */
-    public enum Event
-    {
-        NULL(false), // used for confirmation
-        READY(false),
-        ERROR(false),
-        ACTIVITY_JOIN(true),
-        ACTIVITY_SPECTATE(true),
-        ACTIVITY_JOIN_REQUEST(true),
-        /**
-         * A backup key, only important if the
-         * IPCClient receives an unknown event
-         * type in a JSON payload.
-         */
-        UNKNOWN(false);
-        
-        private final boolean subscribable;
-        
-        Event(boolean subscribable)
-        {
-            this.subscribable = subscribable;
-        }
-        
-        public boolean isSubscribable()
-        {
-            return subscribable;
-        }
-        
-        static Event of(String str)
-        {
-            if(str==null)
-                return NULL;
-            for(Event s : Event.values())
-            {
-                if(s != UNKNOWN && s.name().equalsIgnoreCase(str))
-                    return s;
-            }
-            return UNKNOWN;
-        }
-    }
-
 
     // Private methods
     
@@ -343,71 +266,33 @@ public final class IPCClient implements Closeable
      */
     private void startReading()
     {
-        readThread = new Thread(() -> {
+        readThread = threadFactory.newThread(() -> {
             try
             {
                 Packet p;
                 while((p = pipe.read()).getOp() != OpCode.CLOSE)
                 {
+                    if(listener != null)
+                        listener.onPacketReceived(this, p);
+
                     JSONObject json = p.getJson();
-                    Event event = Event.of(json.optString("evt", null));
+                    String event = json.optString("evt", null);
                     String nonce = json.optString("nonce", null);
-                    switch(event)
-                    {
-                        case NULL:
-                            if(nonce != null && callbacks.containsKey(nonce))
-                                callbacks.remove(nonce).succeed(p);
-                            break;
-                            
-                        case ERROR:
-                            if(nonce != null && callbacks.containsKey(nonce))
-                                callbacks.remove(nonce).fail(json.getJSONObject("data").optString("message", null));
-                            break;
-                            
-                        case ACTIVITY_JOIN:
-                            LOGGER.debug("Reading thread received a 'join' event.");
-                            break;
-                            
-                        case ACTIVITY_SPECTATE:
-                            LOGGER.debug("Reading thread received a 'spectate' event.");
-                            break;
-                            
-                        case ACTIVITY_JOIN_REQUEST:
-                            LOGGER.debug("Reading thread received a 'join request' event.");
-                            break;
-                            
-                        case UNKNOWN:
-                            LOGGER.debug("Reading thread encountered an event with an unknown type: " +
-                                         json.getString("evt"));
-                            break;
+                    if ("ERROR".equals(event)) {
+                        if(nonce != null && callbacks.containsKey(nonce))
+                            callbacks.remove(nonce).fail(json.getJSONObject("data").optString("message", null));
+                    } else if(nonce != null && callbacks.containsKey(nonce)) {
+                        callbacks.remove(nonce).succeed(p);
                     }
-                    if(listener != null && json.has("cmd") && json.getString("cmd").equals("DISPATCH"))
+
+                    if(json.has("cmd") && json.getString("cmd").equals("DISPATCH"))
                     {
                         try
                         {
-                            JSONObject data = json.getJSONObject("data");
-                            switch(Event.of(json.getString("evt")))
-                            {
-                                case ACTIVITY_JOIN:
-                                    listener.onActivityJoin(this, data.getString("secret"));
-                                    break;
-                                    
-                                case ACTIVITY_SPECTATE:
-                                    listener.onActivitySpectate(this, data.getString("secret"));
-                                    break;
-                                    
-                                case ACTIVITY_JOIN_REQUEST:
-                                    JSONObject u = data.getJSONObject("user");
-                                    User user = new User(
-                                        u.getString("username"),
-                                        u.getString("discriminator"),
-                                        Long.parseLong(u.getString("id")),
-                                        u.optString("avatar", null)
-                                    );
-                                    listener.onActivityJoinRequest(this, data.optString("secret", null), user);
-                                    break;
+                            Consumer<Packet> handler = eventHandlers.get(event);
+                            if (handler != null)
+                                handler.accept(p);
                             }
-                        }
                         catch(Exception e)
                         {
                             LOGGER.error("Exception when handling event: ", e);
@@ -434,17 +319,5 @@ public final class IPCClient implements Closeable
         LOGGER.debug("Starting IPCClient reading thread!");
         readThread.start();
     }
-    
     // Private static methods
-    
-    /**
-     * Finds the current process ID.
-     *
-     * @return The current process ID.
-     */
-    private static int getPID()
-    {
-        String pr = ManagementFactory.getRuntimeMXBean().getName();
-        return Integer.parseInt(pr.substring(0,pr.indexOf('@')));
-    }
 }

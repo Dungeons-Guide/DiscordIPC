@@ -28,6 +28,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.HashMap;
+import java.util.Optional;
 
 public class WindowsPipe extends Pipe
 {
@@ -36,14 +37,10 @@ public class WindowsPipe extends Pipe
 
     private final RandomAccessFile file;
 
-    WindowsPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location)
+    WindowsPipe(IPCClient ipcClient, HashMap<String, Callback> callbacks, String location) throws IOException
     {
         super(ipcClient, callbacks);
-        try {
-            this.file = new RandomAccessFile(location, "rw");
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        this.file = new RandomAccessFile(location, "rw");
     }
 
     @Override
@@ -73,8 +70,6 @@ public class WindowsPipe extends Pipe
         file.readFully(d);
         Packet p = new Packet(op, new JSONObject(new String(d)));
         LOGGER.debug(String.format("Received packet: %s", p.toString()));
-        if(listener != null)
-            listener.onPacketReceived(ipcClient, p);
         return p;
     }
 
