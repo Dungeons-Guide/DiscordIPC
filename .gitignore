@@ -29,5 +29,3 @@ hs_err_pid*
 # Testing
 /src/test/
 /target/
-/build/
-.gradle
